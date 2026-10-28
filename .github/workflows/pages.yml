@@ -1,0 +1,40 @@
+# Deploys the self-contained interactive demo (./demo) to GitHub Pages.
+#
+# Prereqs (one-time, in repo Settings):
+#   Settings → Pages → Build and deployment → Source: **GitHub Actions**
+#   (If Pages is left on the legacy "Deploy from a branch" mode it overrides this
+#    workflow's artifact, so switch the source first.)
+#
+# The demo has no build step and no external dependencies, so this just uploads
+# ./demo as the static site. index.html is served at the site root:
+#   https://<user>.github.io/<repo>/            ← link/iframes target this URL
+name: Deploy demo to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./demo
+      - id: deployment
+        uses: actions/deploy-pages@v4

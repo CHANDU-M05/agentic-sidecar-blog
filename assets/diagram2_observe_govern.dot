@@ -1,0 +1,29 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", nodesep=0.5, ranksep=0.7, pad=0.5];
+  node  [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#0f1c30", fontcolor="#0f1c30"];
+  edge  [fontname="Helvetica", fontsize=11, color="#5b6b8c", fontcolor="#0f1c30", arrowsize=0.9];
+
+  entry [label="governed tool call\ndelete_customer('CUS-123')", fillcolor="#ffffff"];
+  evaln [label="Sidecar.evaluate()\nrecords a decision (never raises)", fillcolor="#5ee7ff"];
+  blk   [label="Decision: BLOCK\nreason: policy delete_* -> deny", fillcolor="#fff3cc"];
+  modeq [label="sidecar.mode ?", shape=diamond, fillcolor="#ffffff"];
+
+  subgraph cluster_observe {
+    label="OBSERVE"; fontsize=13; fontcolor="#0f1c30"; style="rounded"; color="#5b6b8c";
+    o1 [label="decision logged", fillcolor="#eef1f6"];
+    o2 [label=">>> TOOL EXECUTED\ndelete_customer runs", fillcolor="#ffd9d9"];
+    o3 [label="returns 'customer CUS-123 deleted'", fillcolor="#eef1f6"];
+    o1 -> o2 -> o3;
+  }
+  subgraph cluster_govern {
+    label="GOVERN"; fontsize=13; fontcolor="#0f1c30"; style="rounded"; color="#5b6b8c";
+    g1 [label="attach() raises\nSidecarBlockedError", fillcolor="#5ee7ff"];
+    g2 [label=">>> TOOL NOT EXECUTED", fillcolor="#d7f5dd"];
+    g1 -> g2;
+  }
+
+  entry -> evaln -> blk -> modeq;
+  modeq -> o1 [label="observe"];
+  modeq -> g1 [label="govern"];
+}

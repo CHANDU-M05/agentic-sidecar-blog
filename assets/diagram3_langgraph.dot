@@ -1,0 +1,35 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Helvetica", bgcolor="white", nodesep=0.45, ranksep=0.8, pad=0.5];
+  node  [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#0f1c30", fontcolor="#0f1c30"];
+  edge  [fontname="Helvetica", fontsize=11, color="#5b6b8c", fontcolor="#0f1c30", arrowsize=0.9];
+
+  cfg   [label="Policy config (separate)\npolicy / risk / intent / budget", fillcolor="#f2ecff"];
+  side  [label="Sidecar\nmode=govern, fail_closed", fillcolor="#5ee7ff"];
+
+  subgraph cluster_tools {
+    label="Plain tool functions"; fontsize=12; fontcolor="#0f1c30"; style="rounded,dashed"; color="#8b7cff";
+    t1 [label="read_order()", fillcolor="#ffffff"];
+    t2 [label="issue_refund()", fillcolor="#ffffff"];
+    t3 [label="delete_customer()", fillcolor="#ffffff"];
+  }
+
+  attachn [label="attach(sidecar, tools)\n-> governed wrappers", fillcolor="#e9eefc"];
+  lctools [label="tool(fn)  -> LangChain tools", fillcolor="#e9eefc"];
+
+  subgraph cluster_graph {
+    label="StateGraph"; fontsize=12; fontcolor="#0f1c30"; style="rounded"; color="#5b6b8c";
+    ag [label="agent\n(scripted, deterministic)", fillcolor="#ffffff"];
+    cond [label="tools_condition", shape=diamond, fillcolor="#ffffff"];
+    tn [label="ToolNode\n(governed tools)", fillcolor="#d7f5dd"];
+  }
+
+  endn [label="final message\n(or SidecarBlockedError)", fillcolor="#ffd9d9"];
+
+  cfg -> side; side -> attachn;
+  t1 -> attachn; t2 -> attachn; t3 -> attachn;
+  attachn -> lctools -> tn;
+  ag -> cond; cond -> tn [label="tool_calls"];
+  cond -> endn [label="no tool_calls"];
+  tn -> ag [label="ToolMessage"];
+}

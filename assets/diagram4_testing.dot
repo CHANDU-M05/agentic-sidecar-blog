@@ -1,0 +1,23 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Helvetica", bgcolor="white", nodesep=0.4, ranksep=0.7, pad=0.5,
+         label="Governed support agent - 22 deterministic pytest tests (Python 3.14.8, agentic-sidecar 0.6.0, no API key)",
+         labelloc=t, fontcolor="#0f1c30", fontsize=13];
+  node  [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#0f1c30", fontcolor="#0f1c30"];
+  edge  [fontname="Helvetica", fontsize=11, color="#5b6b8c", arrowsize=0.9];
+
+  basic  [label="Basic controls (4)\nright call for lookup, small refund,\nlarge refund, deletion", fillcolor="#5ee7ff"];
+  ovg    [label="Observe vs Govern (4)\ngovern: BLOCK raises, tool NOT run\nobserve: BLOCK logged, tool still runs", fillcolor="#d7f5dd"];
+  intent [label="Intent Guardian (6)\nlimit holds at 250 / 500 / 750\nreason from the binding (isolated layer)", fillcolor="#5ee7ff"];
+  budget [label="Budget Guardian (4)\nceiling -> PAUSE, escalation_required=True\nrecorded, NOT enforced at 0.6.0 (gap)", fillcolor="#fff3cc"];
+  e2e    [label="End-to-end LangGraph (4)\ngraph behaves through ToolNode\nfirst blocking layer wins", fillcolor="#eef1f6"];
+
+  {rank=same; basic; ovg; intent; budget; e2e;}
+
+  root [label="test suite", fillcolor="#ffffff", shape=ellipse];
+  root -> basic;
+  root -> ovg;
+  root -> intent;
+  root -> budget;
+  root -> e2e;
+}

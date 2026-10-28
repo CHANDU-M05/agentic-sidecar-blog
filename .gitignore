@@ -1,0 +1,13 @@
+# Python artifacts from the demo test suite
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local virtualenvs / caches (none expected here, kept defensive)
+.venv/
+venv/
+.uvcache/
+
+# OS / editor noise
+.DS_Store
+*.swp

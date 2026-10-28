@@ -1,0 +1,120 @@
+### environment
+Python 3.14.8
+
+### src/customer_support_agent.py
+[GOVERN] BLOCK tool=issue_refund args={'order_id': 'ORD-123', 'amount': 750.0} risk=HIGH reason=Risk Evaluator: Matched risk rule tool='issue_refund' -> risk=HIGH (risk >= block threshold 'HIGH')
+[GOVERN] BLOCK tool=delete_customer args={'customer_id': 'CUS-123'} risk=None reason=Policy Advisor: Destructive operations require sign-off
+CUSTOMER SUPPORT AGENT
+Agentic Sidecar + LangGraph
+
+============================================================
+SAFE ORDER LOOKUP
+============================================================
+User: Please look up order ORD-123
+    >>> TOOL EXECUTED: read_order(ORD-123)
+Final: Done. Tool result: Order ORD-123: status=shipped, items=3
+
+Sidecar decisions:
+  read_order: ALLOW | risk=LOW | Policy Advisor: Matched policy rule tool='read_*' -> effect=allow; Risk Evaluator: Matched risk rule tool='read_*' -> risk=LOW; Intent Guardian: No intent constraints violated for 'read_order'; Budget Guardian: 
+
+============================================================
+AUTHORIZED REFUND
+============================================================
+User: Please issue a refund of 250 for order ORD-123
+    >>> TOOL EXECUTED: issue_refund(ORD-123, amount=250.0)
+Final: Done. Tool result: Refund of 250.0 issued for ORD-123
+
+Sidecar decisions:
+  issue_refund: ALLOW | risk=LOW | Policy Advisor: No policy rule matched tool 'issue_refund'; default effect is 'allow'; Risk Evaluator: No risk rule matched tool 'issue_refund'; default risk is 'LOW'; Intent Guardian: No intent constraints violated for 'issue_refund'; Budget Guardian: 
+
+============================================================
+OVERSIZED REFUND
+============================================================
+User: Please issue a refund of 750 for order ORD-123
+Execution stopped: SidecarBlockedError: Sidecar blocked 'issue_refund'({'order_id': 'ORD-123', 'amount': 750.0}): Risk Evaluator: Matched risk rule tool='issue_refund' -> risk=HIGH (risk >= block threshold 'HIGH')
+
+Sidecar decisions:
+  issue_refund: BLOCK | risk=HIGH | Risk Evaluator: Matched risk rule tool='issue_refund' -> risk=HIGH (risk >= block threshold 'HIGH')
+
+============================================================
+DESTRUCTIVE ACTION
+============================================================
+User: Please delete customer CUS-123
+Execution stopped: SidecarBlockedError: Sidecar blocked 'delete_customer'({'customer_id': 'CUS-123'}): Policy Advisor: Destructive operations require sign-off
+
+Sidecar decisions:
+  delete_customer: BLOCK | risk=None | Policy Advisor: Destructive operations require sign-off
+
+### src/observe_vs_govern.py
+[OBSERVE] BLOCK tool=delete_customer args={'customer_id': 'CUS-123'} risk=None reason=Policy Advisor: Destructive operations require sign-off
+[GOVERN] BLOCK tool=delete_customer args={'customer_id': 'CUS-123'} risk=None reason=Policy Advisor: Destructive operations require sign-off
+
+==================================================
+  MODE: OBSERVE
+==================================================
+  Calling governed delete_customer(customer_id='CUS-123') ...
+    >>> TOOL EXECUTED: delete_customer
+  Tool returned: 'customer CUS-123 deleted'
+
+  Decisions recorded by sidecar (1):
+    tool=delete_customer  status=BLOCK  risk=None
+
+==================================================
+  MODE: GOVERN
+==================================================
+  Calling governed delete_customer(customer_id='CUS-123') ...
+  SidecarBlockedError raised!
+  Decision : BLOCK
+  Risk     : None
+  Reason   : Policy Advisor: Destructive operations require sign-off
+    >>> TOOL NOT EXECUTED
+
+  Decisions recorded by sidecar (1):
+    tool=delete_customer  status=BLOCK  risk=None
+
+### src/intent_guardian_demo.py
+[GOVERN] BLOCK tool=issue_refund args={'order_id': 'ORD-123', 'amount': 750} risk=None reason=Intent Guardian: Refund exceeds the user's authorized maximum of 500
+=== INTENT GUARDIAN DEMO ===
+
+Refund amount: 250
+Decision: ALLOW
+Risk: None
+Reason: Intent Guardian: No intent constraints violated for 'issue_refund'
+
+Refund amount: 500
+Decision: ALLOW
+Risk: None
+Reason: Intent Guardian: No intent constraints violated for 'issue_refund'
+
+Refund amount: 750
+Decision: BLOCK
+Risk: None
+Reason: Intent Guardian: Refund exceeds the user's authorized maximum of 500
+
+### src/sidecar_demo.py
+[GOVERN] BLOCK tool=issue_refund args={'order_id': 'ORD-123', 'amount': 750} risk=HIGH reason=Risk Evaluator: Refund exceeds standard authorization limit (risk >= block threshold 'HIGH')
+[GOVERN] BLOCK tool=delete_customer args={'customer_id': 'CUS-123'} risk=None reason=Policy Advisor: Destructive operations are not allowed
+
+Tool: read_order
+Arguments: {'order_id': 'ORD-123'}
+Decision: ALLOW
+Risk: LOW
+Reason: Policy Advisor: No policy rule matched tool 'read_order'; default effect is 'allow'; Risk Evaluator: No risk rule matched tool 'read_order'; default risk is 'LOW'; Budget Guardian: 
+
+Tool: issue_refund
+Arguments: {'order_id': 'ORD-123', 'amount': 250}
+Decision: ALLOW
+Risk: LOW
+Reason: Policy Advisor: No policy rule matched tool 'issue_refund'; default effect is 'allow'; Risk Evaluator: No risk rule matched tool 'issue_refund'; default risk is 'LOW'; Budget Guardian: 
+
+Tool: issue_refund
+Arguments: {'order_id': 'ORD-123', 'amount': 750}
+Decision: BLOCK
+Risk: HIGH
+Reason: Risk Evaluator: Refund exceeds standard authorization limit (risk >= block threshold 'HIGH')
+
+Tool: delete_customer
+Arguments: {'customer_id': 'CUS-123'}
+Decision: BLOCK
+Risk: None
+Reason: Policy Advisor: Destructive operations are not allowed

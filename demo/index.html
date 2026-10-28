@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agentic Sidecar — Interactive Visual Companion</title>
+<meta name="description" content="Interactive, animated companion to three Agentic Sidecar engineering articles: the tool-boundary policy gate, an Observe vs Govern simulator, and the LangGraph integration loop. Simulation only — no real refunds, deletions, or network calls." />
+<link rel="stylesheet" href="styles.css" />
+
+<!-- Single source of truth for the simulator. Validated against live
+     agentic-sidecar 0.6.0 by blog_posts/demo/tests/test_simulator_policy.py.
+     Every decision / risk / reason / execution outcome below is copied verbatim
+     from evidence/observe_govern_matrix.txt and evidence/demo_output.txt. -->
+<script type="application/json" id="sim-data">
+{
+  "version": "0.6.0",
+  "failMode": "fail_closed",
+  "refundCeiling": 500,
+  "riskBlockThreshold": "HIGH",
+  "layers": ["policy", "risk", "intent", "budget"],
+  "scenarios": [
+    {
+      "id": "read_order",
+      "label": "Read an order",
+      "userRequest": "Please look up order ORD-123",
+      "tool": "read_order",
+      "toolCallDisplay": "read_order(order_id='ORD-123')",
+      "argsRepr": "{'order_id': 'ORD-123'}",
+      "execMarker": "read_order(ORD-123)",
+      "toolResult": "Order ORD-123: status=shipped, items=3",
+      "decision": "ALLOW",
+      "risk": "LOW",
+      "matchedLayer": "policy",
+      "primaryReason": "Policy Advisor: Matched policy rule tool='read_*' -> effect=allow",
+      "decisionReason": "Policy Advisor: Matched policy rule tool='read_*' -> effect=allow; Risk Evaluator: Matched risk rule tool='read_*' -> risk=LOW; Intent Guardian: No intent constraints violated for 'read_order'; Budget Guardian: ",
+      "executesObserve": true,
+      "executesGovern": true
+    },
+    {
+      "id": "refund_500",
+      "label": "Refund of exactly $500",
+      "userRequest": "Please issue a refund of 500 for order ORD-123",
+      "tool": "issue_refund",
+      "toolCallDisplay": "issue_refund(order_id='ORD-123', amount=500.0)",
+      "argsRepr": "{'order_id': 'ORD-123', 'amount': 500.0}",
+      "execMarker": "issue_refund(ORD-123, amount=500.0)",
+      "toolResult": "Refund of 500.0 issued for ORD-123",
+      "decision": "ALLOW",
+      "risk": "LOW",
+      "matchedLayer": "intent",
+      "primaryReason": "Intent Guardian: No intent constraints violated for 'issue_refund'",
+      "decisionReason": "Policy Advisor: No policy rule matched tool 'issue_refund'; default effect is 'allow'; Risk Evaluator: No risk rule matched tool 'issue_refund'; default risk is 'LOW'; Intent Guardian: No intent constraints violated for 'issue_refund'; Budget Guardian: ",
+      "executesObserve": true,
+      "executesGovern": true
+    },
+    {
+      "id": "refund_750",
+      "label": "Refund of $750 (over the limit)",
+      "userRequest": "Please issue a refund of 750 for order ORD-123",
+      "tool": "issue_refund",
+      "toolCallDisplay": "issue_refund(order_id='ORD-123', amount=750.0)",
+      "argsRepr": "{'order_id': 'ORD-123', 'amount': 750.0}",
+      "execMarker": "issue_refund(ORD-123, amount=750.0)",
+      "toolResult": "Refund of 750.0 issued for ORD-123",
+      "decision": "BLOCK",
+      "risk": "HIGH",
+      "matchedLayer": "risk",
+      "primaryReason": "Risk Evaluator: Matched risk rule tool='issue_refund' -> risk=HIGH (risk >= block threshold 'HIGH')",
+      "decisionReason": "Risk Evaluator: Matched risk rule tool='issue_refund' -> risk=HIGH (risk >= block threshold 'HIGH')",
+      "executesObserve": true,
+      "executesGovern": false
+    },
+    {
+      "id": "delete_customer",
+      "label": "Delete a customer",
+      "userRequest": "Please delete customer CUS-123",
+      "tool": "delete_customer",
+      "toolCallDisplay": "delete_customer(customer_id='CUS-123')",
+      "argsRepr": "{'customer_id': 'CUS-123'}",
+      "execMarker": "delete_customer(CUS-123)",
+      "toolResult": "Customer CUS-123 deleted",
+      "decision": "BLOCK",
+      "risk": "None",
+      "matchedLayer": "policy",
+      "primaryReason": "Policy Advisor: Destructive operations require sign-off",
+      "decisionReason": "Policy Advisor: Destructive operations require sign-off",
+      "executesObserve": true,
+      "executesGovern": false
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <h1>Agentic Sidecar — Interactive Visual Companion</h1>
+    <p>Animated architecture diagrams, a hands-on <strong>Observe vs Govern</strong> simulator,
+       and realistic terminal panels that accompany three engineering articles on governing a
+       LangGraph customer-support agent with <code class="inl">agentic-sidecar==0.6.0</code>.</p>
+    <div class="badges">
+      <span class="badge">agentic-sidecar 0.6.0</span>
+      <span class="badge">Python 3.14.8</span>
+      <span class="badge">LangGraph 1.2.11</span>
+      <span class="badge">22/22 tests passing</span>
+      <span class="badge">Simulation only · no real actions</span>
+    </div>
+    <div class="legend" role="list" aria-label="State color legend">
+      <span class="chip" role="listitem"><span class="dot allow"></span> ALLOW — tool runs</span>
+      <span class="chip" role="listitem"><span class="dot block"></span> BLOCK — decision to stop</span>
+      <span class="chip" role="listitem"><span class="dot pause"></span> PAUSE — recorded, not enforced at 0.6.0</span>
+      <span class="chip" role="listitem"><span class="dot neutral"></span> neutral / in-flight</span>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Article sections">
+  <div class="wrap" role="tablist">
+    <button class="tab" role="tab" id="tab-1" aria-controls="panel-1" aria-selected="true">1 · Policy at the tool boundary</button>
+    <button class="tab" role="tab" id="tab-2" aria-controls="panel-2" aria-selected="false">2 · Observe vs Govern simulator</button>
+    <button class="tab" role="tab" id="tab-3" aria-controls="panel-3" aria-selected="false">3 · LangGraph integration</button>
+    <button class="tab subtle" type="button" id="motion-toggle" aria-pressed="false" title="Toggle animations on or off">Motion: on</button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ============================ ARTICLE 1 ============================ -->
+  <section class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1" tabindex="0">
+    <div class="card">
+      <h2>Don't Trust the Prompt: Enforcing Policy at the Tool Boundary</h2>
+      <p class="scenario-hook">
+        A customer writes in: <em>“This order was a disaster — refund me $750 and just delete my
+        account.”</em> The support agent is happy to help. It picks the <code class="inl">issue_refund</code>
+        tool with <code class="inl">amount=750</code> and reaches for <code class="inl">delete_customer</code>.
+        Nothing about the prompt stopped either one — but a decision gate sitting <em>on the execution
+        path</em> did.</p>
+      <p class="lede">Telling a model “never refund over 500, never delete a customer” is a request,
+        not a control. The model may obey, and nothing outside it verifies that it did. Real enforcement
+        has to intercept the tool call before the function body runs.</p>
+    </div>
+
+    <div class="card">
+      <h3>Animated request flow</h3>
+      <p class="lede">Watch a request travel from the agent to the gate. The green path is a permitted
+        call that reaches the tool; the red path is a blocked call that never enters the function body.</p>
+      <div class="diagram-toolbar">
+        <button class="btn primary" data-play="flow1-allow" type="button">▶ Play permitted call</button>
+        <button class="btn" data-play="flow1-block" type="button">▶ Play blocked call</button>
+      </div>
+
+      <svg class="flow" id="flow1" viewBox="0 0 940 250" role="img"
+           aria-label="Request flow: User Request, Agent, Tool Call, Policy Enforcement gate, then either ALLOW leading to Tool Execution or BLOCK that stops execution.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+          </marker>
+        </defs>
+
+        <g class="node" id="f1-user" transform="translate(20,95)">
+          <rect width="140" height="60" rx="12"></rect>
+          <text x="70" y="26" text-anchor="middle">User request</text>
+          <text class="sub" x="70" y="44" text-anchor="middle">“refund $750 / delete”</text>
+        </g>
+        <g class="node" id="f1-agent" transform="translate(210,95)">
+          <rect width="130" height="60" rx="12"></rect>
+          <text x="65" y="26" text-anchor="middle">Agent</text>
+          <text class="sub" x="65" y="44" text-anchor="middle">proposes tool call</text>
+        </g>
+        <g class="node" id="f1-call" transform="translate(390,95)">
+          <rect width="130" height="60" rx="12"></rect>
+          <text x="65" y="26" text-anchor="middle">Tool call</text>
+          <text class="sub" x="65" y="44" text-anchor="middle">name + arguments</text>
+        </g>
+        <g class="node gate" id="f1-gate" transform="translate(570,80)">
+          <rect width="150" height="90" rx="12"></rect>
+          <text x="75" y="34" text-anchor="middle">Policy enforcement</text>
+          <text class="sub" x="75" y="54" text-anchor="middle">policy · risk ·</text>
+          <text class="sub" x="75" y="70" text-anchor="middle">intent · budget</text>
+        </g>
+
+        <g class="node decision" id="f1-decision" transform="translate(770,30)">
+          <rect width="150" height="54" rx="12"></rect>
+          <text x="75" y="32" text-anchor="middle">ALLOW → run</text>
+        </g>
+        <g class="node" id="f1-run" transform="translate(770,175)">
+          <rect width="150" height="54" rx="12"></rect>
+          <text x="75" y="23" text-anchor="middle">Tool executes</text>
+          <text class="sub" x="75" y="41" text-anchor="middle">side effect fires</text>
+        </g>
+        <g class="node" id="f1-stop" transform="translate(560,185)">
+          <rect width="150" height="50" rx="12"></rect>
+          <text x="75" y="21" text-anchor="middle" fill="#b42318">BLOCK → stopped</text>
+          <text class="sub" x="75" y="38" text-anchor="middle">body never runs</text>
+        </g>
+
+        <path class="edge" id="e1a" d="M160,125 L206,125"></path>
+        <path class="edge" id="e1b" d="M340,125 L386,125"></path>
+        <path class="edge" id="e1c" d="M520,125 L566,125"></path>
+        <path class="edge allow-path" id="e1d" d="M700,105 L766,60"></path>
+        <path class="edge allow-path" id="e1e" d="M845,84 L845,171"></path>
+        <path class="edge block-path" id="e1f" d="M645,170 L645,183"></path>
+      </svg>
+
+      <p class="static-fallback">Static reading: <strong>User request → Agent → Tool call → Policy
+        enforcement gate</strong>. From the gate, an <span style="color:#0f7a37;font-weight:700">ALLOW</span>
+        continues to <strong>Tool executes</strong>; a <span style="color:#b42318;font-weight:700">BLOCK</span>
+        stops before the function body runs.</p>
+    </div>
+
+    <div class="card">
+      <h3>What the integration looks like</h3>
+      <p class="lede">Governance is applied from the outside, at the point the tool is wired up —
+        never inside the tool body:</p>
+      <div class="terminal" data-terminal="a1-code">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">customer_support_agent.py · source excerpt</span>
+          <span class="t-tag">real code</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre><span class="t-dim"># Plain functions know nothing about policy.</span>
+<span class="t-cmd">governed_functions = attach(sidecar, [read_order, issue_refund, delete_customer])</span>
+governed_tools = [tool(fn) for fn in governed_functions]
+tool_node = ToolNode(governed_tools)</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Terminal: one permitted call, one blocked call</h3>
+      <p class="lede">Press play to reveal the transcript line by line. These lines mirror the real
+        captured output in <code class="inl">evidence/demo_output.txt</code>; the block reason comes
+        straight from the Risk layer.</p>
+      <div class="diagram-toolbar">
+        <button class="btn primary" data-play="term-a1" type="button">▶ Replay transcript</button>
+      </div>
+      <div class="terminal" data-terminal="a1">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">python src/customer_support_agent.py</span>
+          <span class="t-tag">real captured output</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre class="type-target"></pre>
+      </div>
+      <p class="callout-note">The <span class="t-allow" style="font-weight:700">&gt;&gt;&gt; TOOL EXECUTED</span>
+        marker appears for the allowed call and is <strong>absent</strong> for the blocked one — proof the
+        function body was never entered. This panel reproduces the captured evidence verbatim.</p>
+    </div>
+
+    <div class="card">
+      <h3>Security value — and honest limits</h3>
+      <ul>
+        <li><strong>Consistent:</strong> the same rule fires regardless of what the model “intended.”</li>
+        <li><strong>Auditable:</strong> every call yields a structured decision with a reason.</li>
+        <li><strong>Fail-closed:</strong> with <code class="inl">on_sidecar_failure="fail_closed"</code>, a
+          failure of the governance layer itself refuses the call instead of letting it run ungoverned.</li>
+        <li><strong>Limit:</strong> rules that overlap mean an end-to-end “block” can pass for the wrong
+          reason (risk fires before intent here). Isolate each layer to prove it — see Article 3.</li>
+        <li><strong>Limit:</strong> the gate governs tool <em>calls</em>; it does not judge whether a
+          permitted action was a good idea, and it is only as correct as its rules.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============================ ARTICLE 2 — SIMULATOR ============================ -->
+  <section class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" tabindex="0" hidden>
+    <div class="card">
+      <h2>Observe vs Govern: Recording a BLOCK Isn't Preventing It</h2>
+      <p class="scenario-hook">A <code class="inl">[OBSERVE] BLOCK</code> line sits at the top of the log.
+        Three lines later it says <span class="t-allow" style="font-weight:700">&gt;&gt;&gt; TOOL EXECUTED</span>.
+        A team that stops reading at “BLOCK” believes they are protected. They are not.</p>
+      <p class="lede">Agentic Sidecar has two modes that share one field — <code class="inl">mode</code>.
+        <strong>Observe</strong> evaluates and records every decision but lets the tool run. <strong>Govern</strong>
+        enforces the decision and raises <code class="inl">SidecarBlockedError</code> before the body executes.
+        Run the scenarios yourself below.</p>
+      <p class="callout-note"><strong>This is a simulation.</strong> It runs deterministic logic derived from
+        the verified <code class="inl">0.6.0</code> policy — no real refunds are issued, no records are deleted,
+        and there are no external calls. The same scenario always produces the same result.</p>
+    </div>
+
+    <div class="card">
+      <h3>Simulator</h3>
+      <div class="controls-row">
+        <div>
+          <p class="label-cap" id="mode-cap">Mode</p>
+          <div class="segmented mode" role="radiogroup" aria-labelledby="mode-cap">
+            <label><input type="radio" name="mode" value="observe" checked><span class="seg-item" data-kind="observe">Observe</span></label>
+            <label><input type="radio" name="mode" value="govern"><span class="seg-item" data-kind="govern">Govern</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="controls-row">
+        <div>
+          <p class="label-cap" id="scen-cap">Scenario</p>
+          <div class="segmented" role="radiogroup" aria-labelledby="scen-cap" id="scenario-group"><!-- built by JS --></div>
+        </div>
+      </div>
+      <div class="controls-row">
+        <button class="btn primary" id="run-btn" type="button">▶ Run scenario</button>
+        <button class="btn" id="reset-btn" type="button">↺ Reset</button>
+        <span class="status idle" id="mode-echo" aria-live="off">Observe mode · pick a scenario</span>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-box">
+          <div class="k">Policy decision</div>
+          <div class="v"><span class="status idle" id="out-decision">—</span></div>
+        </div>
+        <div class="result-box">
+          <div class="k">Tool execution</div>
+          <div class="v"><span class="status idle" id="out-exec">—</span></div>
+        </div>
+        <div class="result-box">
+          <div class="k">Matched layer · risk</div>
+          <div class="v" id="out-layer" style="font-size:16px">—</div>
+        </div>
+      </div>
+
+      <h3>Execution timeline</h3>
+      <ol class="timeline" id="timeline" aria-label="Policy decision steps">
+        <li><span class="step-no">1</span><span>Receive the request</span></li>
+        <li><span class="step-no">2</span><span>Identify the tool and its arguments</span></li>
+        <li><span class="step-no">3</span><span>Evaluate governance layers: policy → risk → intent → budget</span></li>
+        <li><span class="step-no">4</span><span>Produce the decision (ALLOW / BLOCK)</span></li>
+        <li><span class="step-no">5</span><span>Apply the mode: record only (observe) or enforce (govern)</span></li>
+        <li><span class="step-no">6</span><span>Record the audit event</span></li>
+      </ol>
+
+      <h3>Simulated terminal &amp; audit log</h3>
+      <div class="terminal" data-terminal="sim">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">governed tool call</span>
+          <span class="t-tag">simulated · from verified 0.6.0 decisions</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre class="type-target"></pre>
+      </div>
+
+      <table class="matrix" aria-label="Observe versus Govern outcome matrix">
+        <caption>Verified against live agentic-sidecar 0.6.0 — see
+          <code class="inl">evidence/observe_govern_matrix.txt</code>. A BLOCK is <em>recorded</em> in both
+          modes; it only <em>prevents</em> execution in Govern.</caption>
+        <thead><tr><th>Scenario</th><th>Decision</th><th>Observe → tool ran?</th><th>Govern → tool ran?</th></tr></thead>
+        <tbody id="matrix-body"><!-- built by JS --></tbody>
+      </table>
+
+      <p class="callout-note"><strong>PAUSE (conceptual note):</strong> govern mode enforces exactly one
+        status — BLOCK. A budget ceiling in 0.6.0 returns <span class="status pause" style="padding:2px 10px">PAUSE</span>
+        with <code class="inl">escalation_required=True</code>, but the adapter never raises for it, so the
+        over-budget tool still runs in govern mode. There is no human-approval pause in this release;
+        <code class="inl">SidecarSuspendedError</code> only appears in 0.6.1+. This simulator therefore uses
+        ALLOW and BLOCK only, which are the verified enforced outcomes.</p>
+    </div>
+  </section>
+
+  <!-- ============================ ARTICLE 3 ============================ -->
+  <section class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" tabindex="0" hidden>
+    <div class="card">
+      <h2>Wiring Governance Into a LangGraph Agent Without Touching the Tools</h2>
+      <p class="scenario-hook">Your support agent already works: a LangGraph loop of
+        <code class="inl">agent → tools → agent</code> with real business tools. Security asks you to add
+        runtime governance <em>this sprint</em> — without rewriting every tool and without breaking the loop.</p>
+      <p class="lede">The trap is threading policy through each tool with if-statements and decorators.
+        The clean alternative is one seam: wrap the plain functions with <code class="inl">attach(sidecar, [...])</code>,
+        turn the governed wrappers into LangChain tools, and drop them into the same
+        <code class="inl">ToolNode</code>. The tool bodies never see the rules.</p>
+    </div>
+
+    <div class="card">
+      <h3>Animated LangGraph execution loop</h3>
+      <p class="lede">The request enters the agent, routes through <code class="inl">tools_condition</code>
+        to the governed <code class="inl">ToolNode</code>, and hits the <code class="inl">attach()</code>
+        governance wrapper. A permitted call returns to the agent; a blocked call breaks out with an error.</p>
+      <div class="diagram-toolbar">
+        <button class="btn primary" data-play="flow3-allow" type="button">▶ Play permitted call</button>
+        <button class="btn" data-play="flow3-block" type="button">▶ Play blocked call</button>
+      </div>
+
+      <svg class="flow" id="flow3" viewBox="0 0 940 320" role="img"
+           aria-label="LangGraph loop: Agent to tools_condition to ToolNode to attach governance wrapper, then either the tool executes and returns to the agent, or the wrapper raises and breaks out.">
+        <g class="node" id="f3-agent" transform="translate(20,130)">
+          <rect width="140" height="64" rx="12"></rect>
+          <text x="70" y="28" text-anchor="middle">Agent node</text>
+          <text class="sub" x="70" y="46" text-anchor="middle">scripted / LLM</text>
+        </g>
+        <g class="node" id="f3-cond" transform="translate(230,130)">
+          <rect width="140" height="64" rx="12"></rect>
+          <text x="70" y="28" text-anchor="middle">tools_condition</text>
+          <text class="sub" x="70" y="46" text-anchor="middle">route to tools</text>
+        </g>
+        <g class="node" id="f3-toolnode" transform="translate(440,130)">
+          <rect width="140" height="64" rx="12"></rect>
+          <text x="70" y="28" text-anchor="middle">ToolNode</text>
+          <text class="sub" x="70" y="46" text-anchor="middle">governed tools</text>
+        </g>
+        <g class="node gate" id="f3-attach" transform="translate(650,120)">
+          <rect width="160" height="84" rx="12"></rect>
+          <text x="80" y="30" text-anchor="middle">attach() wrapper</text>
+          <text class="sub" x="80" y="50" text-anchor="middle">sidecar.evaluate()</text>
+          <text class="sub" x="80" y="66" text-anchor="middle">policy·risk·intent·budget</text>
+        </g>
+
+        <g class="node decision" id="f3-run" transform="translate(650,20)">
+          <rect width="160" height="56" rx="12"></rect>
+          <text x="80" y="24" text-anchor="middle" fill="#0f7a37">Tool body runs</text>
+          <text class="sub" x="80" y="42" text-anchor="middle">ToolMessage → back to agent</text>
+        </g>
+        <g class="node" id="f3-break" transform="translate(650,240)">
+          <rect width="160" height="56" rx="12"></rect>
+          <text x="80" y="24" text-anchor="middle" fill="#b42318">SidecarBlockedError</text>
+          <text class="sub" x="80" y="42" text-anchor="middle">body never runs · loop breaks</text>
+        </g>
+
+        <path class="edge" id="e3a" d="M160,162 L226,162"></path>
+        <path class="edge" id="e3b" d="M370,162 L436,162"></path>
+        <path class="edge" id="e3c" d="M580,162 L646,162"></path>
+        <path class="edge allow-path" id="e3d" d="M730,120 L730,80"></path>
+        <path class="edge allow-path" id="e3e" d="M650,48 Q300,10 160,128"></path>
+        <path class="edge block-path" id="e3f" d="M730,204 L730,238"></path>
+      </svg>
+
+      <p class="static-fallback">Static reading: <strong>Agent → tools_condition → ToolNode → attach()
+        wrapper</strong>. An <span style="color:#0f7a37;font-weight:700">ALLOW</span> runs the body and a
+        <code class="inl">ToolMessage</code> returns to the agent (loop closes). A
+        <span style="color:#b42318;font-weight:700">BLOCK</span> raises <code class="inl">SidecarBlockedError</code>
+        and the body never runs.</p>
+    </div>
+
+    <div class="card">
+      <h3>The integration pattern (real code)</h3>
+      <div class="terminal" data-terminal="a3-code">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">customer_support_agent.py · build_graph()</span>
+          <span class="t-tag">real code</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre><span class="t-dim"># Plain functions know nothing about policy.</span>
+<span class="t-dim"># Governance is applied OUTSIDE the tool bodies, before @tool.</span>
+<span class="t-cmd">governed_functions = attach(sidecar, [read_order, issue_refund, delete_customer])</span>
+governed_tools  = [tool(fn) for fn in governed_functions]
+tool_node       = ToolNode(governed_tools)
+
+graph = StateGraph(AgentState)
+graph.add_node("agent", scripted_agent)
+graph.add_node("tools", tool_node)
+graph.set_entry_point("agent")
+graph.add_conditional_edges("agent", tools_condition,
+                            {"tools": "tools", "__end__": "__end__"})
+graph.add_edge("tools", "agent")
+app = graph.compile()</pre>
+      </div>
+      <p class="callout-note"><strong>Order matters:</strong> <code class="inl">attach()</code> expects plain
+        Python callables. Passing a <code class="inl">@tool</code>-decorated <code class="inl">StructuredTool</code>
+        into <code class="inl">attach()</code> raises a <code class="inl">TypeError</code> during signature
+        inspection. Attach first, decorate second.</p>
+    </div>
+
+    <div class="card">
+      <h3>Step-by-step: integration, testing, failure handling</h3>
+      <ol class="timeline" id="a3-steps" style="margin-top:8px">
+        <li class="done"><span class="step-no">1</span><span>Define plain business tools (no policy logic).</span></li>
+        <li class="done"><span class="step-no">2</span><span>Build the Sidecar with policy · risk · intent · budget and <code class="inl">mode="govern"</code>.</span></li>
+        <li class="done"><span class="step-no">3</span><span>Wrap with <code class="inl">attach()</code>, then convert to <code class="inl">@tool</code>s and a <code class="inl">ToolNode</code>.</span></li>
+        <li class="done"><span class="step-no">4</span><span>Run the usual <code class="inl">agent → tools_condition → tools → agent</code> graph.</span></li>
+        <li class="done"><span class="step-no">5</span><span>Test each layer in isolation <em>and</em> the wired graph end to end (22 tests).</span></li>
+        <li class="done"><span class="step-no">6</span><span>Handle <code class="inl">SidecarBlockedError</code> at the caller; fail-closed refuses calls if the gate itself errors.</span></li>
+      </ol>
+      <p class="lede">The scripted agent inspects the last message: if it is a
+        <code class="inl">ToolMessage</code> it emits a final reply instead of re-proposing the call — that
+        is what stops the loop from spinning forever, and it makes every run deterministic.</p>
+    </div>
+
+    <div class="card">
+      <h3>Terminal: permitted vs blocked through the graph</h3>
+      <div class="diagram-toolbar">
+        <button class="btn primary" data-play="term-a3-allow" type="button">▶ Permitted call</button>
+        <button class="btn" data-play="term-a3-block" type="button">▶ Blocked call</button>
+      </div>
+      <div class="terminal" data-terminal="a3-allow">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">read_order · ALLOW</span>
+          <span class="t-tag">real captured output</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre class="type-target"></pre>
+      </div>
+      <div class="terminal" data-terminal="a3-block">
+        <div class="bar"><span class="dots"><i></i><i></i><i></i></span>
+          <span class="title">delete_customer · BLOCK</span>
+          <span class="t-tag">real captured output</span>
+          <button class="copy" type="button" data-copy>Copy</button></div>
+<pre class="type-target"></pre>
+      </div>
+      <p class="callout-note"><strong>Verified vs conceptual:</strong> the ALLOW/BLOCK outcomes above are
+        backed by captured output and by <code class="inl">test_customer_support_agent.py</code>
+        (22/22 passing, Python 3.14.8). Governance is <em>not</em> automatic for every LangGraph tool —
+        it applies only to functions you route through <code class="inl">attach()</code>. Failure handling
+        is verified for BLOCK and fail-closed config; concurrency and a live LLM were not tested.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="pagefoot wrap">
+  <p>Built as a static, self-contained visual companion to the Agentic Sidecar internship articles.
+     No JavaScript frameworks, no network calls, no API keys. Open <code class="inl">index.html</code>
+     directly or serve the folder. All “simulated” panels are clearly labeled; captured panels trace to
+     <code class="inl">evidence/</code>.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

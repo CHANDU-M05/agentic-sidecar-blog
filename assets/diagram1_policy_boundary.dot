@@ -1,0 +1,28 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Helvetica", bgcolor="white", nodesep=0.4, ranksep=0.6, pad=0.5];
+  node  [fontname="Helvetica", fontsize=12, shape=box, style="rounded,filled", color="#0f1c30", fontcolor="#0f1c30"];
+  edge  [fontname="Helvetica", fontsize=11, color="#5b6b8c", fontcolor="#0f1c30", arrowsize=0.9];
+
+  agent   [label="LLM Agent\n(proposes tool call)", fillcolor="#e9eefc"];
+  call    [label="Tool call\ndelete_customer('CUS-123')", fillcolor="#ffffff"];
+  wrap    [label="agentic-sidecar  attach() wrapper\n(intercepts every call)", fillcolor="#5ee7ff"];
+
+  subgraph cluster_gates {
+    label="Governance layers"; fontsize=12; fontcolor="#0f1c30"; style="rounded,dashed"; color="#8b7cff";
+    policy  [label="PolicyAdvisor\ndelete_* -> deny", fillcolor="#f2ecff"];
+    risk    [label="RiskEvaluator\namount>500 -> HIGH", fillcolor="#f2ecff"];
+    intent  [label="IntentGuardian\nmax_refund <= 500", fillcolor="#f2ecff"];
+    budget  [label="BudgetGuardian\ncost<=10  tokens<=50k", fillcolor="#f2ecff"];
+  }
+
+  decide  [label="Decision\n{status, risk, reason}", shape=diamond, fillcolor="#ffffff"];
+  block   [label="SidecarBlockedError\ncall never dispatched", fillcolor="#ffd9d9"];
+  tool    [label="Real tool executes\n(read_order / issue_refund)", fillcolor="#d7f5dd"];
+
+  agent -> call -> wrap;
+  wrap -> policy; wrap -> risk; wrap -> intent; wrap -> budget;
+  policy -> decide; risk -> decide; intent -> decide; budget -> decide;
+  decide -> block [label="BLOCK (govern)"];
+  decide -> tool  [label="ALLOW"];
+}
