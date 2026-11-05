@@ -42,7 +42,7 @@ What a support operation needs is the same thing a payments system needs: a chec
 Agentic Sidecar is a governance layer that runs alongside an agent. Instead of letting every proposed tool call execute, it evaluates the call first and returns a decision. In this project I used four of its layers:
 
 - **Policy:** pattern rules on tool names. `read_*` is allowed, `delete_*` is denied.
-- **Risk:** rates a call LOW or HIGH, here using an argument value (a refund above 500 is HIGH).
+- **Risk:** rates a call LOW, MEDIUM, or HIGH (this demo produces only LOW and HIGH), here using an argument value — a refund above 500 is HIGH.
 - **Intent:** compares the call against what the requester actually authorized (a maximum refund of 500).
 - **Budget:** caps cost at $10.00 and tokens at 50,000.
 
